@@ -239,7 +239,8 @@ get_db_info(Db) ->
         update_seq=SeqNum,
         name=Name,
         fulldocinfo_by_id_btree=FullDocBtree,
-        instance_start_time=StartTime} = Db,
+        instance_start_time=StartTime,
+        committed_update_seq=CommittedUpdateSeq} = Db,
     {ok, Size} = couch_file:bytes(Fd),
     {ok, {Count, DelCount}} = couch_btree:full_reduce(FullDocBtree),
     InfoList = [
@@ -251,7 +252,8 @@ get_db_info(Db) ->
         {compact_running, Compactor/=nil},
         {disk_size, Size},
         {instance_start_time, StartTime},
-        {disk_format_version, DiskVersion}
+        {disk_format_version, DiskVersion},
+        {committed_update_seq, CommittedUpdateSeq}
         ],
     {ok, InfoList}.
 
@@ -368,6 +370,8 @@ update_doc(Db, Doc, Options, UpdateType) ->
     case update_docs(Db, [Doc], Options, UpdateType) of
     {ok, [{ok, NewRev}]} ->
         {ok, NewRev};
+    {ok, [{{_Id, _Rev}, Error}]} ->
+        throw(Error);
     {ok, [Error]} ->
         throw(Error);
     {ok, []} ->

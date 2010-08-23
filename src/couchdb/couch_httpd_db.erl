@@ -106,6 +106,9 @@ handle_changes_req(#httpd{method='GET'}=Req, Db) ->
             FeedChangesFun(MakeCallback(Resp))
         end
     end,
+    couch_stats_collector:track_process_count(
+        {httpd, clients_requesting_changes}
+    ),
     WrapperFun(ChangesFun);
 
 handle_changes_req(#httpd{path_parts=[_,<<"_changes">>]}=Req, _Db) ->
@@ -144,7 +147,9 @@ handle_design_req(#httpd{
     % load ddoc
     DesignId = <<"_design/", DesignName/binary>>,
     DDoc = couch_httpd_db:couch_doc_open(Db, DesignId, nil, []),
-    Handler = couch_util:dict_find(Action, DesignUrlHandlers, fun db_req/2),
+    Handler = couch_util:dict_find(Action, DesignUrlHandlers, fun(_, _, _) ->
+            throw({not_found, <<"missing handler: ", Action/binary>>})
+        end),
     Handler(Req, Db, DDoc);
 
 handle_design_req(Req, Db) ->
@@ -242,6 +247,7 @@ db_req(#httpd{path_parts=[_DbName]}=Req, _Db) ->
     send_method_not_allowed(Req, "DELETE,GET,HEAD,POST");
 
 db_req(#httpd{method='POST',path_parts=[_,<<"_ensure_full_commit">>]}=Req, Db) ->
+    couch_httpd:validate_ctype(Req, "application/json"),
     UpdateSeq = couch_db:get_update_seq(Db),
     CommittedSeq = couch_db:get_committed_update_seq(Db),
     {ok, StartTime} =
@@ -480,7 +486,13 @@ all_docs_view(Req, Db, Keys) ->
         true -> EndDocId
         end,
         FoldAccInit = {Limit, SkipCount, undefined, []},
-		UpdateSeq = couch_db:get_update_seq(Db),
+        UpdateSeq = couch_db:get_update_seq(Db),
+        JsonParams = case couch_httpd:qs_value(Req, "update_seq") of
+        "true" ->
+            [{update_seq, UpdateSeq}];
+        _Else ->
+            []
+        end,
         case Keys of
         nil ->
             FoldlFun = couch_httpd_view:make_view_fold_fun(Req, QueryArgs, CurrentEtag, Db, UpdateSeq,
@@ -498,7 +510,7 @@ all_docs_view(Req, Db, Keys) ->
             {ok, LastOffset, FoldResult} = couch_db:enum_docs(Db,
                 AdapterFun, FoldAccInit, [{start_key, StartId}, {dir, Dir},
                     {if Inclusive -> end_key; true -> end_key_gt end, EndId}]),
-            couch_httpd_view:finish_view_fold(Req, TotalRowCount, LastOffset, FoldResult);
+            couch_httpd_view:finish_view_fold(Req, TotalRowCount, LastOffset, FoldResult, JsonParams);
         _ ->
             FoldlFun = couch_httpd_view:make_view_fold_fun(Req, QueryArgs, CurrentEtag, Db, UpdateSeq,
                 TotalRowCount, #view_fold_helper_funs{
@@ -527,7 +539,7 @@ all_docs_view(Req, Db, Keys) ->
                     {_, FoldAcc2} = FoldlFun(Doc, 0, FoldAcc),
                     FoldAcc2
                 end, FoldAccInit, Keys),
-            couch_httpd_view:finish_view_fold(Req, TotalRowCount, 0, FoldResult)
+            couch_httpd_view:finish_view_fold(Req, TotalRowCount, 0, FoldResult, JsonParams)
         end
     end).
 
@@ -1019,7 +1031,8 @@ db_attachment_req(#httpd{method=Method,mochi_req=MochiReq}=Req, Db, DocId, FileN
         'DELETE' ->
             {200, []};
         _ ->
-            {201, [{"Location", absolute_uri(Req, "/" ++
+            {201, [{"Etag", "\"" ++ ?b2l(couch_doc:rev_to_str(UpdatedRev)) ++ "\""},
+               {"Location", absolute_uri(Req, "/" ++
                 binary_to_list(DbName) ++ "/" ++
                 binary_to_list(DocId) ++ "/" ++
                 binary_to_list(FileName)
