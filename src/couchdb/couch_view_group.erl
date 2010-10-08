@@ -402,7 +402,7 @@ prepare_group({RootDir, DbName, #group{sig=Sig}=Group}, ForceReset)->
 get_index_header_data(#group{current_seq=Seq, purge_seq=PurgeSeq,
             id_btree=IdBtree,views=Views}) ->
     ViewStates = [
-        {couch_btree:get_state(V#view.btree), V#view.update_seq} || V <- Views
+        {couch_btree:get_state(V#view.btree), V#view.update_seq, V#view.purge_seq} || V <- Views
     ],
     #index_header{
         seq=Seq,
@@ -461,14 +461,14 @@ set_view_sig(#group{
             lib={[]},
             def_lang=Language,
             design_options=DesignOptions}=G) ->
-    ViewInfo = [V#view{update_seq=0} || V <- Views],
+    ViewInfo = [V#view{update_seq=0, purge_seq=0} || V <- Views],
     G#group{sig=couch_util:md5(term_to_binary({ViewInfo, Language, DesignOptions}))};
 set_view_sig(#group{
             views=Views,
             lib=Lib,
             def_lang=Language,
             design_options=DesignOptions}=G) ->
-    ViewInfo = [V#view{update_seq=0} || V <- Views],
+    ViewInfo = [V#view{update_seq=0, purge_seq=0} || V <- Views],
     G#group{sig=couch_util:md5(term_to_binary({ViewInfo, Language, DesignOptions, sort_lib(Lib)}))}.
 
 sort_lib({Lib}) ->
@@ -576,14 +576,14 @@ delete_index_file(RootDir, DbName, GroupSig) ->
 init_group(Db, Fd, #group{views=Views}=Group, nil) ->
     init_group(Db, Fd, Group,
         #index_header{seq=0, purge_seq=couch_db:get_purge_seq(Db),
-            id_btree_state=nil, view_states=[{nil, 0} || _ <- Views]});
+            id_btree_state=nil, view_states=[{nil, 0, 0} || _ <- Views]});
 init_group(Db, Fd, #group{def_lang=Lang,views=Views}=
             Group, IndexHeader) ->
      #index_header{seq=Seq, purge_seq=PurgeSeq,
             id_btree_state=IdBtreeState, view_states=ViewStates} = IndexHeader,
     {ok, IdBtree} = couch_btree:open(IdBtreeState, Fd),
     Views2 = lists:zipwith(
-        fun({BTState, USeq}, #view{reduce_funs=RedFuns,options=Options}=View) ->
+        fun({BTState, USeq, PSeq}, #view{reduce_funs=RedFuns,options=Options}=View) ->
             FunSrcs = [FunSrc || {_Name, FunSrc} <- RedFuns],
             ReduceFun =
                 fun(reduce, KVs) ->
@@ -609,7 +609,7 @@ init_group(Db, Fd, #group{def_lang=Lang,views=Views}=
             {ok, Btree} = couch_btree:open(BTState, Fd,
                     [{less, Less}, {reduce, ReduceFun}]
             ),
-            View#view{btree=Btree, update_seq=USeq}
+            View#view{btree=Btree, update_seq=USeq, purge_seq=PSeq}
         end,
         ViewStates, Views),
     Group#group{db=Db, fd=Fd, current_seq=Seq, purge_seq=PurgeSeq,

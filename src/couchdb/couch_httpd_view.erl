@@ -614,8 +614,8 @@ view_group_etag(Db, Group, {reduce, _, _, View}, Extra) ->
     view_group_etag(Db, Group, View, Extra);
 view_group_etag(Db, Group, {temp_reduce, View}, Extra) ->
     view_group_etag(Db, Group, View, Extra);
-view_group_etag(_Db, #group{sig=Sig}, #view{update_seq=UpdateSeq}, Extra) ->
-    couch_httpd:make_etag({Sig, UpdateSeq, Extra}).
+view_group_etag(_Db, #group{sig=Sig}, #view{update_seq=UpdateSeq, purge_seq=PurgeSeq}, Extra) ->
+    couch_httpd:make_etag({Sig, UpdateSeq, PurgeSeq, Extra}).
 
 % the view row has an error
 view_row_obj(_Db, {{Key, error}, Value}, _IncludeDocs) ->

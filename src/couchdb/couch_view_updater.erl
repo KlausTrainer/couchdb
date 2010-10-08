@@ -96,19 +96,25 @@ purge_index(#group{db=Db, views=Views, id_btree=IdBtree}=Group) ->
         end, dict:new(), Lookups),
 
     % Now remove the values from the btrees
+    PurgeSeq = couch_db:get_purge_seq(Db),
     Views2 = lists:map(
         fun(#view{id_num=Num,btree=Btree}=View) ->
             case dict:find(Num, ViewKeysToRemoveDict) of
             {ok, RemoveKeys} ->
-                {ok, Btree2} = couch_btree:add_remove(Btree, [], RemoveKeys),
-                View#view{btree=Btree2};
+                {ok, ViewBtree2} = couch_btree:add_remove(Btree, [], RemoveKeys),
+                case ViewBtree2 =/= Btree of
+                    true ->
+                        View#view{btree=ViewBtree2, purge_seq=PurgeSeq};
+                    _ ->
+                        View#view{btree=ViewBtree2}
+                end;
             error -> % no keys to remove in this view
                 View
             end
         end, Views),
     Group#group{id_btree=IdBtree2,
             views=Views2,
-            purge_seq=couch_db:get_purge_seq(Db)}.
+            purge_seq=PurgeSeq}.
 
 
 load_doc(Db, DocInfo, MapQueue, DocOpts, IncludeDesign) ->
@@ -218,7 +224,7 @@ view_compute(#group{def_lang=DefLang, lib=Lib, query_server=QueryServerIn}=Group
 
 
 write_changes(Group, ViewKeyValuesToAdd, DocIdViewIdKeys, NewSeq, InitialBuild) ->
-    #group{id_btree=IdBtree} = Group,
+    #group{id_btree=IdBtree, purge_seq=NewPurgeSeq} = Group,
 
     AddDocIdViewIdKeys = [{DocId, ViewIdKeys} || {DocId, ViewIdKeys} <- DocIdViewIdKeys, ViewIdKeys /= []],
     if InitialBuild ->
@@ -249,7 +255,7 @@ write_changes(Group, ViewKeyValuesToAdd, DocIdViewIdKeys, NewSeq, InitialBuild) 
             {ok, ViewBtree2} = couch_btree:add_remove(View#view.btree, AddKeyValues, KeysToRemove),
             case ViewBtree2 =/= View#view.btree of
                 true ->
-                    View#view{btree=ViewBtree2, update_seq=NewSeq};
+                    View#view{btree=ViewBtree2, update_seq=NewSeq, purge_seq=NewPurgeSeq};
                 _ ->
                     View#view{btree=ViewBtree2}
             end
