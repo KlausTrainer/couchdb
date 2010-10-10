@@ -17,9 +17,16 @@ couchTests.etags_views = function(debug) {
   if (debug) debugger;
 
   var designDoc = {
-    _id:"_design/etags",
+    _id: "_design/etags",
     language: "javascript",
     views : {
+      fooView: {
+        map: stringFun(function(doc) {
+          if (doc.foo) {
+            emit("bar", 1);
+          }
+        }),
+      },
       basicView : {
         map : stringFun(function(doc) {
           if(doc.integer && doc.string) {
@@ -72,6 +79,13 @@ couchTests.etags_views = function(debug) {
   var etag1 = xhr.getResponseHeader("etag");
   T(etag1 == etag);
 
+  // verify different views in the same view group may have different ETags
+  xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/fooView");
+  var etag1 = xhr.getResponseHeader("etag");
+  xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/basicView");
+  var etag2 = xhr.getResponseHeader("etag");
+  T(etag1 != etag2);
+
   // verify ETag changes when an update changes the view group's index.
   db.bulkSave(makeDocs(10, 20));
   xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/basicView");
@@ -83,7 +97,6 @@ couchTests.etags_views = function(debug) {
   xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/basicView");
   var etag2 = xhr.getResponseHeader("etag");
   T(etag1 == etag2);
-
 
   // reduce view
   xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/withReduce");
@@ -108,6 +121,13 @@ couchTests.etags_views = function(debug) {
   xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/withReduce");
   var etag1 = xhr.getResponseHeader("etag");
   T(etag1 == etag);
+
+  // verify different views in the same view group may have different ETags
+  xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/fooView");
+  var etag1 = xhr.getResponseHeader("etag");
+  xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/withReduce");
+  var etag2 = xhr.getResponseHeader("etag");
+  T(etag1 != etag2);
 
   // verify ETag changes when an update changes the view group's index
   db.bulkSave(makeDocs(20, 30));
