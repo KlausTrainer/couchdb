@@ -11,7 +11,7 @@
 // the License.
 
 couchTests.etags_views = function(debug) {
-  var db = new CouchDB("test_suite_db", {"X-Couch-Full-Commit":"false"});
+  var db = new CouchDB("test_suite_db", {"X-Couch-Full-Commit":"true"});
   db.deleteDb();
   db.createDb();
   if (debug) debugger;
@@ -44,9 +44,9 @@ couchTests.etags_views = function(debug) {
     }
   };
   T(db.save(designDoc).ok);
+  db.bulkSave(makeDocs(0, 10));
+
   var xhr;
-  var docs = makeDocs(0, 10);
-  db.bulkSave(docs);
 
   // verify get w/Etag on map view
   xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/basicView");
@@ -56,22 +56,34 @@ couchTests.etags_views = function(debug) {
     headers: {"if-none-match": etag}
   });
   T(xhr.status == 304);
-  // TODO GET with keys (when that is available)
 
   // verify ETag doesn't change when an update
   // doesn't change the view group's index
   T(db.save({"_id":"doc1", "foo":"bar"}).ok);
   xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/basicView");
-  T(xhr.status == 200);
   var etag1 = xhr.getResponseHeader("etag");
   T(etag1 == etag);
-  
-  // verify ETag changes when an update changes the view group's index.
-  T(db.save({"_id":"doc2", "integer":-42, "string":"foostring"}).ok);
+  // purge
+  var doc1 = db.open("doc1");
+  xhr = CouchDB.request("POST", "/test_suite_db/_purge", {
+    body: JSON.stringify({"doc1":[doc1._rev]})
+  });
   xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/basicView");
-  T(xhr.status == 200);
+  var etag1 = xhr.getResponseHeader("etag");
+  T(etag1 == etag);
+
+  // verify ETag changes when an update changes the view group's index.
+  db.bulkSave(makeDocs(10, 20));
+  xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/basicView");
   var etag1 = xhr.getResponseHeader("etag");
   T(etag1 != etag);
+
+  // verify ETag is the same after a restart
+  restartServer();
+  xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/basicView");
+  var etag2 = xhr.getResponseHeader("etag");
+  T(etag1 == etag2);
+
 
   // reduce view
   xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/withReduce");
@@ -86,15 +98,28 @@ couchTests.etags_views = function(debug) {
   // doesn't change the view group's index
   T(db.save({"_id":"doc3", "foo":"bar"}).ok);
   xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/withReduce");
-  T(xhr.status == 200);
   var etag1 = xhr.getResponseHeader("etag");
   T(etag1 == etag);
+  // purge
+  var doc3 = db.open("doc3");
+  xhr = CouchDB.request("POST", "/test_suite_db/_purge", {
+    body: JSON.stringify({"doc3":[doc3._rev]})
+  });
+  xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/withReduce");
+  var etag1 = xhr.getResponseHeader("etag");
+  T(etag1 == etag);
+
   // verify ETag changes when an update changes the view group's index
-  T(db.save({"_id":"doc4", "integer":-42, "string":"foostring"}).ok);
-  xhr = CouchDB.request("GET", "/test_suite_db/doc1");
-  T(xhr.status == 200);
+  db.bulkSave(makeDocs(20, 30));
+  xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/withReduce");
   var etag1 = xhr.getResponseHeader("etag");
   T(etag1 != etag);
+
+  // verify ETag is the same after a restart
+  restartServer();
+  xhr = CouchDB.request("GET", "/test_suite_db/_design/etags/_view/withReduce");
+  var etag2 = xhr.getResponseHeader("etag");
+  T(etag1 == etag2);
 
   // confirm ETag changes with different POST bodies
   xhr = CouchDB.request("POST", "/test_suite_db/_design/etags/_view/basicView",
