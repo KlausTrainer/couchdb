@@ -195,7 +195,7 @@ handle_view_list(Req, Db, DDoc, LName, {ViewDesignName, ViewName}, Keys) ->
 
 list_etag(#httpd{user_ctx=UserCtx}=Req, Db, Group, View, More) ->
     Accept = couch_httpd:header_value(Req, "Accept"),
-    couch_httpd_view:view_group_etag(Db, Group, View, {More, Accept, UserCtx#user_ctx.roles}).
+    couch_httpd_view:view_etag(Db, Group, View, {More, Accept, UserCtx#user_ctx.roles}).
 
 output_list(map, Req, Db, DDoc, LName, View, QueryArgs, Etag, Keys, Group) ->
     output_map_list(Req, Db, DDoc, LName, View, QueryArgs, Etag, Keys, Group);
