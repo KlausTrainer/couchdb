@@ -1075,8 +1075,13 @@ db_attachment_req(#httpd{method=Method,mochi_req=MochiReq}=Req, Db, DocId, FileN
             #doc{id=DocId};
         Rev ->
             case couch_db:open_doc_revs(Db, DocId, [Rev], []) of
-            {ok, [{ok, Doc0}]}  -> Doc0;
-            {ok, [Error]}       -> throw(Error)
+            {ok, [{ok, Doc0}]} ->
+                % the doc must include only the latest rev; otherwise, we might
+                % get a spurious conflict when trying to update (COUCHDB-902)
+                {Seq, [H|_]} = Doc0#doc.revs,
+                Doc0#doc{revs={Seq, [H]}};
+            {ok, [Error]} ->
+                throw(Error)
             end
     end,
 
