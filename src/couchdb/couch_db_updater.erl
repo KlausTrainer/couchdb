@@ -481,10 +481,23 @@ send_result(Client, Id, OriginalRevs, NewResult) ->
 
 merge_rev_trees(_Limit, _Merge, [], [], AccNewInfos, AccRemoveSeqs, AccSeq) ->
     {ok, lists:reverse(AccNewInfos), AccRemoveSeqs, AccSeq};
-merge_rev_trees(Limit, MergeConflicts, [NewDocs|RestDocsList],
+merge_rev_trees(Limit, MergeConflicts, [NewDocs0|RestDocsList],
         [OldDocInfo|RestOldInfo], AccNewInfos, AccRemoveSeqs, AccSeq) ->
     #full_doc_info{id=Id,rev_tree=OldTree,deleted=OldDeleted,update_seq=OldSeq}
             = OldDocInfo,
+    NewDocs = case MergeConflicts of
+    false ->
+        % the documents must include only the latest rev;
+        % otherwise, we might get a spurious conflict
+        % (c.f. COUCHDB-902)
+        lists:foldl(
+            fun({Client, Doc}, Acc) ->
+                {Pos, RevTree} = Doc#doc.revs,
+                [{Client, Doc#doc{revs={Pos, lists:sublist(RevTree, 2)}}} | Acc]
+            end, [], NewDocs0);
+    true ->
+        NewDocs0
+    end,
     NewRevTree = lists:foldl(
         fun({Client, #doc{revs={Pos,[_Rev|PrevRevs]}}=NewDoc}, AccTree) ->
             if not MergeConflicts ->

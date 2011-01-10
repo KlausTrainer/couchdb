@@ -727,8 +727,19 @@ update_docs(Db, Docs, Options, interactive_edit) ->
         ResultsDict = dict:from_list(IdRevs ++ CommitResults ++ PreCommitFailures),
         {ok, lists:map(
             fun(#doc{id=Id,revs={Pos, RevIds}}) ->
-                {ok, Result} = dict:find({Id, {Pos, RevIds}}, ResultsDict),
-                Result
+                Rev = case RevIds of
+                [] -> [];
+                _ -> hd(RevIds)
+                end,
+                Conflict = {{Id, {Pos, [Rev]}}, conflict},
+                % check for conflict
+                case lists:member(Conflict, CommitResults) of
+                false ->
+                    {ok, Result} = dict:find({Id, {Pos, RevIds}}, ResultsDict),
+                    Result;
+                true ->
+                    Conflict
+                end
             end, Docs)}
     end.
 
