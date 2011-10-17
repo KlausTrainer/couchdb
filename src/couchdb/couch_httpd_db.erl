@@ -62,7 +62,7 @@ handle_changes_req(#httpd{method='GET'}=Req, Db) ->
 handle_changes_req(#httpd{path_parts=[_,<<"_changes">>]}=Req, _Db) ->
     send_method_not_allowed(Req, "GET,HEAD,POST").
 
-handle_changes_req1(Req, #db{name=DbName}=Db) ->
+handle_changes_req1(Req, #db{name=DbName, dropbox=Dropbox}=Db) ->
     AuthDbName = ?l2b(couch_config:get("couch_httpd_auth", "authentication_db")),
     case AuthDbName of
     DbName ->
@@ -70,7 +70,10 @@ handle_changes_req1(Req, #db{name=DbName}=Db) ->
         ok = couch_db:check_is_admin(Db);
     _Else ->
         % on other databases, _changes is free for all.
-        ok
+        case Dropbox of
+        true -> couch_db:check_is_admin(Db);
+        false -> ok
+        end
     end,
     handle_changes_req2(Req, Db).
 

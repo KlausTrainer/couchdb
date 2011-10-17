@@ -99,8 +99,8 @@ handle_cleanup_req(Req, _Db) ->
     couch_httpd:send_method_not_allowed(Req, "POST").
 
 
-all_docs_req(Req, Db, Keys) ->
-    case couch_db:is_system_db(Db) of
+all_docs_req(Req, #db{dropbox=Dropbox}=Db, Keys) ->
+    case Dropbox orelse couch_db:is_system_db(Db) of
     true ->
         case (catch couch_db:check_is_admin(Db)) of
         ok ->

@@ -190,7 +190,8 @@
     options = [],
     compression,
     before_doc_update = nil, % nil | fun(Doc, Db) -> NewDoc
-    after_doc_read = nil     % nil | fun(Doc, Db) -> NewDoc
+    after_doc_read = nil,    % nil | fun(Doc, Db) -> NewDoc
+    dropbox=false
     }).
 
 
