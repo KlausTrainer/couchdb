@@ -408,6 +408,7 @@ db_req(#httpd{method='PUT',path_parts=[_,<<"_security">>]}=Req, Db) ->
     send_json(Req, {[{<<"ok">>, true}]});
 
 db_req(#httpd{method='GET',path_parts=[_,<<"_security">>]}=Req, Db) ->
+    ok = couch_db:check_is_admin(Db),
     send_json(Req, couch_db:get_security(Db));
 
 db_req(#httpd{path_parts=[_,<<"_security">>]}=Req, _Db) ->

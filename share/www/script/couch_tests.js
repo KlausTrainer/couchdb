@@ -72,6 +72,7 @@ loadTest("replicator_db.js");
 loadTest("replicator_db_security.js");
 loadTest("rev_stemming.js");
 loadTest("rewrite.js");
+loadTest("security_object.js");
 loadTest("security_validation.js");
 loadTest("show_documents.js");
 loadTest("stats.js");

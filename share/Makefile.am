@@ -180,6 +180,7 @@ nobase_dist_localdata_DATA = \
     www/script/test/replicator_db_security.js \
     www/script/test/rev_stemming.js \
     www/script/test/rewrite.js \
+    www/script/test/security_object.js \
     www/script/test/security_validation.js \
     www/script/test/show_documents.js \
     www/script/test/stats.js \
