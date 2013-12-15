@@ -52,7 +52,7 @@ function main() {
       throw er;
     }
 
-    var stdin = new LineStream.v2();
+    var stdin = new LineStream();
 
     stdin.on('readable', function() {
       var buf = stdin.read();
